@@ -159,12 +159,52 @@ class SO3(jdc.EnforcedAnnotationsMixin, _base.SOBase):
         q0, q1, q2, q3 = self.wxyz
         return jnp.arctan2(2 * (q0 * q3 + q1 * q2), 1 - 2 * (q2**2 + q3**2))
 
+    def vec(self) -> jnp.ndarray:
+        return self.wxyz
+
     # Factory.
 
     @staticmethod
     @overrides
     def identity() -> SO3:
         return SO3(wxyz=jnp.array([1.0, 0.0, 0.0, 0.0]))
+
+    @staticmethod
+    def orthogonalize(matrix: hints.Array):
+        eps = 1e-8
+        
+        if matrix.shape == (6,):
+            matrix = matrix.reshape((2, 3)).swapaxes(-2, -1)
+
+        if matrix.shape == (3, 3):
+            e0, e1, _ = jnp.split(matrix, 3, axis=1)
+        elif matrix.shape == (3, 2):
+            e0, e1 = jnp.split(matrix, 2, axis=1)
+        else:
+            raise ValueError(f'Invalid shape {matrix.shape}')
+
+        e0 = e0.squeeze(axis=-1)
+        e1 = e1.squeeze(axis=-1)
+
+        e0 = e0 / jnp.sqrt((e0**2).sum() + eps)
+        e1 = e1 - e0 * jnp.dot(e0, e1)
+        e1 = e1 / jnp.sqrt((e1**2).sum() + eps)
+        e2 = jnp.cross(e0, e1)
+
+        # denom = jnp.sqrt((e0**2).sum() + eps)
+        # e0 = e0 / denom
+        # dot = jnp.dot(e0, e1)
+        # e1 = e0 - e1 * dot
+        # denom = jnp.sqrt((e1**2).sum() + eps)
+        # e1 = e1 / denom
+        # e2 = jnp.array([
+        #     e0[1] * e1[2] - e0[2] * e1[1],
+        #     e0[2] * e1[0] - e0[0] * e1[2],
+        #     e0[0] * e1[1] - e0[1] * e1[0]
+        # ], dtype=e1.dtype)
+
+        rots = jnp.stack([e0, e1, e2], axis=-1)
+        return rots
 
     @staticmethod
     @overrides
@@ -371,6 +411,7 @@ class SO3(jdc.EnforcedAnnotationsMixin, _base.SOBase):
                 norm_sq,
             )
         )
+        w_safe = jnp.where(use_taylor, w, 1.0)
 
         atan_n_over_w = jnp.arctan2(
             jnp.where(w < 0, -norm_safe, norm_safe),
@@ -378,7 +419,7 @@ class SO3(jdc.EnforcedAnnotationsMixin, _base.SOBase):
         )
         atan_factor = jnp.where(
             use_taylor,
-            2.0 / w - 2.0 / 3.0 * norm_sq / w**3,
+            2.0 / w_safe - 2.0 / 3.0 * norm_sq / w_safe**3,
             jnp.where(
                 jnp.abs(w) < get_epsilon(w.dtype),
                 jnp.where(w > 0, 1.0, -1.0) * jnp.pi / norm_safe,

@@ -72,12 +72,34 @@ class SE3(jdc.EnforcedAnnotationsMixin, _base.SEBase[SO3]):
     def translation(self) -> jnp.ndarray:
         return self.wxyz_xyz[..., 4:]
 
+    def vec(self) -> jnp.ndarray:
+        return self.wxyz_xyz
+
     # Factory.
 
     @staticmethod
     @overrides
     def identity() -> SE3:
         return SE3(wxyz_xyz=jnp.array([1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]))
+
+    @staticmethod
+    def orthogonalize(matrix: hints.Array):
+        if matrix.shape == (9,):
+            # 6d rotation + 3d translation
+            rot = matrix[:6]
+            tran = matrix[6:]
+            rot = SO3.orthogonalize(rot)
+        else:
+            rot = SO3.orthogonalize(matrix[:3, :3])
+            tran = matrix[:3, 3]
+
+        return (
+            jnp.eye(4)
+            .at[:3, :3]
+            .set(rot)
+            .at[:3, 3]
+            .set(tran)
+        )
 
     @staticmethod
     @overrides

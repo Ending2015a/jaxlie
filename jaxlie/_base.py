@@ -9,7 +9,7 @@ from . import hints
 
 GroupType = TypeVar("GroupType", bound="MatrixLieGroup")
 SEGroupType = TypeVar("SEGroupType", bound="SEBase")
-
+RnSOnGroupType = TypeVar("RnSOnGroupType", bound="RnSOnBase")
 
 class MatrixLieGroup(abc.ABC, EnforceOverrides):
     """Interface definition for matrix Lie groups."""
@@ -275,4 +275,67 @@ class SEBase(Generic[ContainedSOType], MatrixLieGroup):
         return type(self).from_rotation_and_translation(
             rotation=self.rotation().normalize(),
             translation=self.translation(),
+        )
+
+class RnSOnBase(Generic[ContainedSOType], MatrixLieGroup):
+    """Base class for <Rn, SOn> composite groups.
+    
+    Each R(N)SO(N) group member contains an SO(N) rotation, as well as an N-dimensional
+    translation vector (in Euclidean space).
+    """
+
+    @classmethod
+    @abc.abstractmethod
+    def from_rotation_and_translation(
+        cls: Type[RnSOnGroupType],
+        rotation: ContainedSOType,
+        translation: hints.Array
+    ) -> RnSOnGroupType:
+        """...."""
+
+
+    @final
+    @classmethod
+    def from_rotation(cls: Type[RnSOnGroupType], rotation: ContainedSOType) -> RnSOnGroupType:
+        return cls.from_rotation_and_translation(
+            rotation = rotation,
+            translation=onp.zeros(cls.space_dim, dtype=rotation.parameters().dtype)
+        )
+
+    @abc.abstractmethod
+    def rotation(self) -> ContainedSOType:
+        """..."""
+
+    @abc.abstractmethod
+    def translation(self) -> jnp.ndarray:
+        """..."""
+
+    @final
+    @overrides
+    def apply(self, target: hints.Array) -> jnp.ndarray:
+        return self.rotation() @ target + self.translation()
+
+    @final
+    @overrides
+    def multiply(self: RnSOnGroupType, other: RnSOnGroupType) -> RnSOnGroupType:
+        return type(self).from_rotation_and_translation(
+            rotation=self.rotation() @ other.rotation(),
+            translation=other.translation() + self.translation()
+        )
+
+    @final
+    @overrides
+    def inverse(self: RnSOnGroupType) -> RnSOnGroupType:
+        R_inv = self.rotation().inverse()
+        return type(self).from_rotation_and_translation(
+            rotation=R_inv,
+            translation= - self.translation()
+        )
+
+    @final
+    @overrides
+    def normalize(self: RnSOnGroupType) -> RnSOnGroupType:
+        return type(self).from_rotation_and_translation(
+            rotation=self.rotation().normalize(),
+            translation=self.translation()
         )
