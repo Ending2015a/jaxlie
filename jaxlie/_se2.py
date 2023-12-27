@@ -75,6 +75,19 @@ class SE2(jdc.EnforcedAnnotationsMixin, _base.SEBase[SO2]):
     @overrides
     def identity() -> "SE2":
         return SE2(unit_complex_xy=jnp.array([1.0, 0.0, 0.0, 0.0]))
+    
+    @staticmethod
+    def orthogonalize(matrix: hints.Array):
+        rot = SO2.orthogonalize(matrix[:2, :2])
+        tran = matrix[:2, 2]
+        
+        return (
+            jnp.eye(4)
+            .at[:2, :2]
+            .set(rot)
+            .at[:2, 2]
+            .set(tran)
+        )
 
     @staticmethod
     @overrides

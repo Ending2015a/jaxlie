@@ -55,6 +55,24 @@ class SO2(jdc.EnforcedAnnotationsMixin, _base.SOBase):
     @overrides
     def identity() -> SO2:
         return SO2(unit_complex=jnp.array([1.0, 0.0]))
+    
+    @staticmethod
+    def orthogonalize(matrix: hints.Array):
+        eps = 1e-8
+        
+        if matrix.shape == (2, 2):
+            e0, e1 = jnp.split(matrix, 3, axis=1)
+        else:
+            raise ValueError(f'Invalid shape {matrix.shape}')
+
+        e0 = e0.squeeze(axis=-1)
+        e1 = e1.squeeze(axis=-1)
+        
+        e0 = e0 / jnp.sqrt((e0**2).sum() + eps)
+        e1 = e1 - e0 * jnp.dot(e0, e1)
+        e1 = e1 / jnp.sqrt((e1**2).sum() + eps)
+        rots = jnp.stack([e0, e1], axis=-1)
+        return rots
 
     @staticmethod
     @overrides
